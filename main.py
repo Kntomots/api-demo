@@ -11,25 +11,27 @@ def fix_id(item):
     return item
 
 @app.get("/boards")
-async def get_boards():
+async def get_all_project_boards():
     boards = []
     cursor = boards_collection.find({})  
     async for doc in cursor:
         boards.append(fix_id(doc))
     return boards
-@app.get("/boards/{board_id}")
-async def get_board_tasks(board_id: str):
-    board = await boards_collection.find_one({"id": board_id})
+@app.get("/boards/{board_name}")
+async def get_board_tasks(board_name: str):
+    board = await boards_collection.find_one({"name": board_name})
     if board is None:
         raise HTTPException(status_code=404, detail="Board not found")
     
-    result = {"lists": board["lists"]}
+    result = {
+        "name": board["name"],
+        "lists": board["lists"]}
     
     
     return result
-@app.get("/boards/{board_id}/lists/{list_id}")
-async def get_tasks_from_list(board_id: str, list_id: str):
-    board = await boards_collection.find_one({"id": board_id})
+@app.get("/boards/{board_name}/lists/{list_id}")
+async def get_tasks_from_board_list(board_name: str, list_id: str):
+    board = await boards_collection.find_one({"name": board_name})
     if board is None:
         raise HTTPException(status_code=404, detail="Board not found")
     
@@ -40,14 +42,12 @@ async def get_tasks_from_list(board_id: str, list_id: str):
                 "tasks": lst["tasks"]
             }
         
-    raise HTTPException(status_code=404, detail="List not found")
+    raise HTTPException(status_code=404, detail="List not found")   
     
-    
-    return result
-@app.post("/boards/{board_id}/lists/{list_id}")
-async def add_task(board_id: str, list_id: str, task: Task):
+@app.post("/boards/{board_name}/lists/{list_id}")
+async def add_task_to_board(board_name: str, list_id: str, task: Task):
     result = await boards_collection.update_one(
-        {"id": board_id, "lists.id": list_id},
+        {"name": board_name, "lists.id": list_id},
         {"$push": {"lists.$.tasks": task.dict()}}
     )
 
@@ -55,3 +55,35 @@ async def add_task(board_id: str, list_id: str, task: Task):
         raise HTTPException(status_code=404, detail="Board or list not found")
 
     return {"message": "Task added successfully", "task": task}
+
+@app.put("/boards/{board_name}/tasks/{task_id}/move")
+async def move_task(board_name: str, task_id: str, source_list_id: str, dest_list_id: str):
+    board = await boards_collection.find_one({"name": board_name})
+    if not board:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    task_to_move = None
+    for lst in board["lists"]:
+        if lst["id"] == source_list_id:
+            for task in lst["tasks"]:
+                if task["id"] == task_id:
+                    task_to_move = task
+                    lst["tasks"].remove(task)
+                    break
+
+    if not task_to_move:
+        raise HTTPException(status_code=404, detail="Task not found in source list")
+
+    for lst in board["lists"]:
+        if lst["id"] == dest_list_id:
+            lst["tasks"].append(task_to_move)
+            break
+    else:
+        raise HTTPException(status_code=404, detail="Destination list not found")
+
+    await boards_collection.update_one(
+        {"name": board_name},
+        {"$set": {"lists": board["lists"]}}
+    )
+
+    return {"message": "Task moved successfully", "task": task_to_move}
