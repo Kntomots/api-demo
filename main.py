@@ -87,3 +87,29 @@ async def move_task(board_name: str, task_id: str, source_list_id: str, dest_lis
     )
 
     return {"message": "Task moved successfully", "task": task_to_move}
+
+@app.delete("/boards/{board_name}/tasks/{task_id}")
+async def delete_task(board_name: str, task_id: str):
+    board = await boards_collection.find_one({"name": board_name})
+    if not board:
+        raise HTTPException(status_code=404, detail="Board not found")
+
+    task_found = False
+    for lst in board["lists"]:
+        for task in lst["tasks"]:
+            if task["id"] == task_id:
+                lst["tasks"].remove(task)
+                task_found = True
+                break
+        if task_found:
+            break
+
+    if not task_found:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    await boards_collection.update_one(
+        {"name": board_name},
+        {"$set": {"lists": board["lists"]}}
+    )
+
+    return {"message": "Task deleted successfully"}
