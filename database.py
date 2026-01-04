@@ -1,7 +1,11 @@
 # database.py
 from motor.motor_asyncio import AsyncIOMotorClient
+import os
+from dotenv import load_dotenv
 
-MONGO_URL = "mongodb+srv://kostasntomotsidis_db_user:dh33AlV646AVzzVJ@cluster0.nrbrten.mongodb.net/Taskmanager?retryWrites=true&w=majority&appName=Cluster0"
+load_dotenv()
+
+MONGO_URL = os.getenv("MONGO_URL")
 
 client = AsyncIOMotorClient(MONGO_URL)
 

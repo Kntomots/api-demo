@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from database import boards_collection
 from bson import ObjectId
 from schemas import Task
